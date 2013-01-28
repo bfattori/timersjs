@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Functional Timer Testing</title>
+    <script type="text/javascript" src="timers.js"></script>
+
+    <script type="text/javascript">
+        var timer, repeater, multi, oneshot, trigger;
+
+        TimersJS.repeater(100, function() {
+            document.getElementById("poolSize").innerHTML = TimersJS.poolSize();
+        });
+
+        function addClass(el, className) {
+            if (el.className.indexOf(className) == -1) {
+                el.className += " " + className;
+            }
+        }
+
+        function removeClass(el, className) {
+            var s = el.className.indexOf(className);
+            var newClassName = el.className.substring(0, s);
+            newClassName += el.className.substr(s + className.length);
+            el.className = newClassName;
+        }
+
+        function hasClass(el, className) {
+            return (el.className.indexOf(className) != -1);
+        }
+
+        function startTimer() {
+            if (!timer) {
+                timer = TimersJS.timer(500, function() {
+                    var el = document.querySelector("div.timer");
+                    if (hasClass(el, "on")) {
+                        removeClass(el, "on");
+                    } else {
+                        addClass(el, "on");
+                    }
+                });
+            }
+        }
+
+        function restartTimer() {
+            if (timer) {
+                timer.restart();
+            }
+        }
+
+        function startInterval() {
+            if (!repeater) {
+                repeater = TimersJS.repeater(500, function() {
+                    var el = document.querySelector("div.repeater");
+                    if (hasClass(el, "on")) {
+                        removeClass(el, "on");
+                    } else {
+                        addClass(el, "on");
+                    }
+                });
+            }
+        }
+
+        function stopInterval() {
+            repeater = repeater.kill();
+        }
+
+        function startMultiTimer() {
+            if (!multi) {
+                multi = TimersJS.multi(500, 10, function(repetition) {
+                    var el = document.querySelector("div.multi");
+                    if (hasClass(el, "on")) {
+                        removeClass(el, "on");
+                    } else {
+                        addClass(el, "on");
+                    }
+                }, function() {
+                    var el = document.querySelector("div.multi");
+                    if (hasClass(el, "red")) {
+                        removeClass(el, "red");
+                        addClass(el, "green");
+                    } else {
+                        removeClass(el, "green");
+                        addClass(el, "red");
+                    }
+                    if (!hasClass(el, "on")) {
+                        addClass(el, "on");
+                    }
+                    multi = null;
+                });
+            }
+        }
+
+        function startOneShot() {
+            if (!oneshot) {
+                oneshot = TimersJS.oneShot(250, function() {
+                    var el = document.querySelector("div.oneshot");
+                    if (hasClass(el, "red")) {
+                        removeClass(el, "red");
+                        addClass(el, "green");
+                    } else {
+                        removeClass(el, "green");
+                        addClass(el, "red");
+                    }
+                    oneshot = null;
+                });
+            }
+        }
+
+        function startTrigger() {
+            if (!trigger) {
+                var el = document.querySelector("div.trigger1");
+                addClass(el, "on");
+                trigger = TimersJS.trigger(5000, function() {
+                    var el = document.querySelector("div.trigger1");
+                    var el2 = document.querySelector("div.trigger2");
+                    removeClass(el, "on");
+                    removeClass(el2, "on");
+                    trigger = null;
+                }, 500, function() {
+                    var el = document.querySelector("div.trigger2");
+                    if (hasClass(el, "on")) {
+                        removeClass(el, "on");
+                    } else {
+                        addClass(el, "on");
+                    }
+                });
+            }
+        }
+
+        function somethingCool() {
+            TimersJS.timer(250, function() {
+                if (true) {
+                    this.restart();
+                } else {
+                    this.kill();
+                }
+            })
+        }
+
+        function pauseAll() {
+            TimersJS.pauseAllTimers();
+        }
+
+        function restartAll() {
+            TimersJS.restartAllTimers();
+        }
+
+        function cancelAll() {
+            TimersJS.cancelAllTimers();
+            timer = null;
+            repeater = null;
+            multi = null;
+            oneshot = null;
+            trigger = null;
+        }
+
+    </script>
+    <style type="text/css">
+        div.led {
+            display: inline-block;
+            border: 1px solid;
+            border-radius: 10px;
+            width: 10px;
+            height: 10px;
+            margin: 3px;
+        }
+
+        div.led.green {
+            background: #080;
+        }
+
+        div.led.red {
+            background: #800;
+        }
+
+        div.led.green.on {
+            background: #0f0;
+        }
+
+        div.led.red.on {
+            background: #f00;
+        }
+    </style>
+</head>
+<body>
+    <h1>TimersJS Testing</h1>
+    Timers in pool&nbsp;<span id="poolSize"></span>
+    <table>
+        <tr>
+            <td>
+                Timer: <div class="timer led green"><!-- --></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Repeater: <div class="repeater led green"><!-- --></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Multi: <div class="multi led green"><!-- --></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                OneShot: <div class="oneshot led green on"><!-- --></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Trigger: <div class="trigger1 led green"><!-- --></div><div class="trigger2 led red"><!-- --></div>
+            </td>
+        </tr>
+    </table>
+    <input type="button" value="Start Timer" onclick="startTimer()"/>
+    <input type="button" value="Restart Timer" onclick="restartTimer()"/>
+    <input type="button" value="Start Interval" onclick="startInterval()"/>
+    <input type="button" value="Stop Interval" onclick="stopInterval()"/>
+    <input type="button" value="Start MultiTimer" onclick="startMultiTimer()"/>
+    <input type="button" value="Start OneShot" onclick="startOneShot()"/>
+    <input type="button" value="Start Trigger" onclick="startTrigger()"/><br/>
+
+    <input type="button" value="Pause all timers" onclick="pauseAll()"/>
+    <input type="button" value="Restart all" onclick="restartAll()"/>
+    <input type="button" value="Cancel all" onclick="cancelAll()"/><br/>
+
+
+</body>
+</html>
