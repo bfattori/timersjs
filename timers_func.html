@@ -66,14 +66,8 @@
 
         function startMultiTimer() {
             if (!multi) {
+                addClass(document.querySelector("div.multi"), "on");
                 multi = TimersJS.multi(500, 10, function(repetition) {
-                    var el = document.querySelector("div.multi");
-                    if (hasClass(el, "on")) {
-                        removeClass(el, "on");
-                    } else {
-                        addClass(el, "on");
-                    }
-                }, function() {
                     var el = document.querySelector("div.multi");
                     if (hasClass(el, "red")) {
                         removeClass(el, "red");
@@ -82,9 +76,8 @@
                         removeClass(el, "green");
                         addClass(el, "red");
                     }
-                    if (!hasClass(el, "on")) {
-                        addClass(el, "on");
-                    }
+                }, function() {
+                    removeClass(document.querySelector("div.multi"), "on");
                     multi = null;
                 });
             }
@@ -129,12 +122,17 @@
 
         function somethingCool() {
             TimersJS.timer(250, function() {
-                if (true) {
-                    this.restart();
-                } else {
-                    this.kill();
+                var els = document.querySelectorAll("div.led"), i = 0;
+                while (i < els.length && hasClass(els.item(i), "on")) {
+                    i++;
                 }
-            })
+                if (i == els.length) {
+                    this.kill();
+                } else {
+                    addClass(els.item(i), "on");
+                    this.restart();
+                }
+            });
         }
 
         function pauseAll() {
@@ -146,6 +144,10 @@
         }
 
         function cancelAll() {
+            TimersJS.cancelAllTimers();
+        }
+
+        function killAll() {
             TimersJS.cancelAllTimers();
             timer = null;
             repeater = null;
@@ -214,16 +216,18 @@
     </table>
     <input type="button" value="Start Timer" onclick="startTimer()"/>
     <input type="button" value="Restart Timer" onclick="restartTimer()"/>
-    <input type="button" value="Start Interval" onclick="startInterval()"/>
-    <input type="button" value="Stop Interval" onclick="stopInterval()"/>
+    <input type="button" value="Start Repeater" onclick="startInterval()"/>
+    <input type="button" value="Stop Repeater" onclick="stopInterval()"/>
     <input type="button" value="Start MultiTimer" onclick="startMultiTimer()"/>
     <input type="button" value="Start OneShot" onclick="startOneShot()"/>
     <input type="button" value="Start Trigger" onclick="startTrigger()"/><br/>
 
     <input type="button" value="Pause all timers" onclick="pauseAll()"/>
     <input type="button" value="Restart all" onclick="restartAll()"/>
-    <input type="button" value="Cancel all" onclick="cancelAll()"/><br/>
+    <input type="button" value="Cancel all" onclick="cancelAll()"/>
+    <input type="button" value="Kill all" onclick="killAll()"/><br/>
 
+    <input type="button" value="Do Fun" onclick="somethingCool()"/>
 
 </body>
 </html>

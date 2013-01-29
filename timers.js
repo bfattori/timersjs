@@ -203,42 +203,27 @@
     };
 
     /**
-     * @class An extension of {@link AbstractTimer} that wraps the <tt>window.setInterval</tt> method.
+     * @class An extension of {@link Timer} that repeats at the defined interval.
      * @param interval {Number} The interval for the timer, in milliseconds
      * @param callback {Function} The function to call when the interval is reached
-     * @extends AbstractTimer
+     * @extends Timer
      * @constructor
      * @description Create an interval timer
      */
     var IntervalTimer = function (interval, callback) {
-        AbstractTimer.call(this, interval, callback);
-    };
-    IntervalTimer.prototype = new AbstractTimer();
-    IntervalTimer.base = AbstractTimer.prototype;
+        var internalCallback = function() {
+            var aC = arguments.callee;
+            if (aC.timerCallback)
+                aC.timerCallback.call(this);
 
-    /**
-     * Cancel this interval timer.
-     */
-    IntervalTimer.prototype.cancel = function () {
-        global.clearInterval(this.timer());
-        IntervalTimer.base.cancel.call(this);
-    };
+            this.restart();
+        };
+        internalCallback.timerCallback = callback;
 
-    /**
-     * Cancel and destroy the interval timer.
-     */
-    IntervalTimer.prototype.kill = function () {
-        this.cancel();
-        IntervalTimer.base.kill.call(this);
+        Timer.call(this, interval, internalCallback);
     };
-
-    /**
-     * Restart this interval timer.
-     */
-    IntervalTimer.prototype.restart = function () {
-        this.cancel();
-        this.timer(global.setInterval(this.callback(), this.interval()));
-    };
+    IntervalTimer.prototype = new Timer();
+    IntervalTimer.base = Timer.prototype;
 
     /**
      * @class An extension of {@link Timer} that will repeat the specified number of times before
@@ -264,7 +249,7 @@
                 this.restart();
             } else {
                 if (aC.completionCallback) {
-                    aC.completionCallback();
+                    aC.completionCallback.call(this);
                 }
                 this.kill();
                 global.TimersJS.cleanupCallback(aC);
