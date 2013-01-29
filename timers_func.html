@@ -49,8 +49,10 @@
 
         function startInterval() {
             if (!repeater) {
-                repeater = TimersJS.repeater(500, function() {
-                    var el = document.querySelector("div.repeater");
+                repeater = TimersJS.repeater(500, function(now, delta) {
+                    var el = document.querySelector("div.repeater.led"),
+                        del = document.querySelector("span.repeater.delta");
+                    del.innerHTML = delta + "ms";
                     if (hasClass(el, "on")) {
                         removeClass(el, "on");
                     } else {
@@ -195,7 +197,7 @@
         </tr>
         <tr>
             <td>
-                Repeater: <div class="repeater led green"><!-- --></div>
+                Repeater: <div class="repeater led green"><!-- --></div><span class="repeater delta"></span>
             </td>
         </tr>
         <tr>

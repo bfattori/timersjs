@@ -137,11 +137,14 @@
             } else {
                 if (this._timerFn === null) {
                     this._timerFn = function () {
-                        if (arguments.callee.timerCallback)
-                            arguments.callee.timerCallback.call(arguments.callee.timer);
+                        var aC = arguments.callee, now = Date.now(), delta = now - aC.lastTime;
+                        aC.lastTime = now;
+                        if (aC.timerCallback)
+                            aC.timerCallback.call(aC.timer, now, delta);
                     };
                     this._timerFn.timerCallback = this._callback;
                     this._timerFn.timer = this;
+                    this._timerFn.lastTime = Date.now();
                 }
             }
             return this._timerFn;
@@ -163,15 +166,6 @@
 
     };
 
-    /**
-     * @class An extension of {@link AbstractTimer} that wraps the <tt>window.setTimeout</tt> method.
-     *
-     * @param interval {Number} The interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the interval is reached
-     * @extends AbstractTimer
-     * @constructor
-     * @description Create a timeout timer
-     */
     var Timer = function (interval, callback) {
         AbstractTimer.call(this, interval, callback);
     };
@@ -179,42 +173,25 @@
     Timer.prototype = new AbstractTimer();
     Timer.base = AbstractTimer.prototype;
 
-    /**
-     * Cancel this timeout timer.
-     */
     Timer.prototype.cancel = function () {
         global.clearTimeout(this.timer());
         Timer.base.cancel();
     };
 
-    /**
-     * Cancel and destroy the timeout
-     */
     Timer.prototype.kill = function () {
         this.cancel();
         Timer.base.kill();
     };
 
-    /**
-     * Restart this timeout timer
-     */
     Timer.prototype.restart = function () {
         this.timer(global.setTimeout(this.callback(), this.interval()));
     };
 
-    /**
-     * @class An extension of {@link Timer} that repeats at the defined interval.
-     * @param interval {Number} The interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the interval is reached
-     * @extends Timer
-     * @constructor
-     * @description Create an interval timer
-     */
     var IntervalTimer = function (interval, callback) {
-        var internalCallback = function() {
+        var internalCallback = function(now, delta) {
             var aC = arguments.callee;
             if (aC.timerCallback)
-                aC.timerCallback.call(this);
+                aC.timerCallback.call(this, now, delta);
 
             this.restart();
         };
@@ -225,31 +202,17 @@
     IntervalTimer.prototype = new Timer();
     IntervalTimer.base = Timer.prototype;
 
-    /**
-     * @class An extension of {@link Timer} that will repeat the specified number of times before
-     *        destroying itself.  The callback will be triggered with the
-     *        repetition number as the only argument.  Within the callback, <tt>this</tt>
-     *        refers to the <tt>Timer</tt> object itself.
-     *
-     * @param interval {Number} The interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the interval is reached
-     * @param repetitions {Number} The number of repetitions to restart the timer automatically
-     * @param completionCallback {Function} The function to call when the timer is about to be killed
-     * @extends Timer
-     * @constructor
-     * @description Create a multi-timeout triggering timer
-     */
     var MultiTimer = function (interval, callback, repetitions, completionCallback) {
 
-        var internalCallback = function () {
+        var internalCallback = function (now, delta) {
             var aC = arguments.callee;
             if (aC.repetitions-- > 0) {
-                aC.callbackFunction.call(this, aC.totalRepetitions);
+                aC.callbackFunction.call(this, aC.totalRepetitions, now, delta);
                 aC.totalRepetitions++;
                 this.restart();
             } else {
                 if (aC.completionCallback) {
-                    aC.completionCallback.call(this);
+                    aC.completionCallback.call(this, now, delta);
                 }
                 this.kill();
                 global.TimersJS.cleanupCallback(aC);
@@ -265,22 +228,11 @@
     MultiTimer.prototype = new Timer();
     MultiTimer.base = Timer.prototype;
 
-    /**
-     * @class An extension of {@link Timer} which is a one-shot timer that cannot
-     *        be restarted and will self-destroy after it completes its interval.  Within
-     *        the callback, <tt>this</tt> refers to the <tt>Timer</tt> object itself.
-     *
-     * @param interval {Number} The interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the interval is reached
-     * @constructor
-     * @extends Timer
-     * @description Create a one-shot timeout
-     */
     var OneShotTimer = function (interval, callback) {
 
-        var innerCallback = function () {
+        var innerCallback = function (now, delta) {
             if (arguments.callee.callbackFunction) {
-                arguments.callee.callbackFunction.call(this);
+                arguments.callee.callbackFunction.call(this, now, delta);
                 this.kill();
                 global.TimersJS.cleanupCallback(arguments.callee);
             }
@@ -292,10 +244,6 @@
     OneShotTimer.prototype = new Timer();
     OneShotTimer.base = Timer.prototype;
 
-    /**
-     * This timer cannot be restarted.
-     * @private
-     */
     OneShotTimer.prototype.restart = function () {
         if (!this._paused && this._running) {
             return;
@@ -304,26 +252,12 @@
         OneShotTimer.base.restart.call(this);
     };
 
-    /**
-     * @class An extension of {@link OneShotTimer} which is a one-shot timer that triggers a callback,
-     *        at regular intervals, until the timer has expired.  When the timer expires, the
-     *        trigger will automatically destroy itself.  Within the callbacks, <tt>this</tt>
-     *        refers to the <tt>Timer</tt> object itself.
-     *
-     * @param interval {Number} The full interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the full interval is reached
-     * @param triggerInterval {Number} The interval between triggers, in milliseconds
-     * @param triggerCallback {Function} The function to call for each trigger interval
-     * @extends OneShotTimer
-     * @constructor
-     * @description Create a one-shot triggering timeout
-     */
     var OneShotTrigger = function (interval, callback, triggerInterval, triggerCallback) {
 
-        var completionCallback = function () {
+        var completionCallback = function (now, delta) {
             var aC = arguments.callee;
             aC.interval.kill();
-            aC.intervalCompletionCallback.call(this);
+            aC.intervalCompletionCallback.call(this, now, delta);
             global.TimersJS.cleanupCallback(aC);
         };
 
@@ -336,6 +270,9 @@
     OneShotTrigger.prototype = new OneShotTimer();
     OneShotTrigger.base = OneShotTimer.prototype;
 
+    /*
+     *      PUBLIC API --------------------------------------------------------------------------
+     */
 
     global.TimersJS = {
         cleanupCallback: function(cb) {
@@ -368,6 +305,8 @@
                 timerPool[0].kill();
             }
         },
+
+        // TIMERS ---------------------------------------------------------------------------
 
         timer: function(interval, callback) {
             return new Timer(interval, callback);
