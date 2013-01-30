@@ -37,161 +37,131 @@
         timerPool.splice(timer.id, 1);
     }
 
-    /**
-     * @class The base abstract class for all timer objects.
-     *
-     * @param interval {Number} The interval for the timer, in milliseconds
-     * @param callback {Function} The function to call when the interval is reached
-     *
-     * @constructor
-     * @description Create a timer object
-     */
-    var AbstractTimer = function (interval, callback) {
-        this._timer = null;
+
+    var Timer = function (interval, callback) {
+        var prototyping = false;
+        if (typeof interval === "undefined")
+            prototyping = true;
+
+        this._systemTimerReference = null;
         this._interval = interval;
         this._callback = callback;
         this._running = false;
         this._paused = false;
-        this._timerFn = null;
+        this._systemTimerFunction = null;
+        this._canBeKilled = true;
+        this._state = {};
 
-        this.id = addTimerToPool(this);
+        if (!prototyping)
+            this.id = addTimerToPool(this);
 
-        this.restart();
+        if (typeof arguments[2] === "undefined")
+            this.restart();
+
+        return this;
     };
 
-    AbstractTimer.prototype = {
-
-        /**
-         * Stop the timer and remove it from the system
-         */
-        kill:function () {
-            // The engine needs to remove this timer
-            global.TimersJS.cleanupCallback(this._timerFn);
-            this.cancel();
-            removeTimerFromPool(this);
-            this._timer = null;
-            return null;
-        },
-
-        /**
-         * Get the underlying system timer object.
-         * @return {Object}
-         */
-        timer:function (timer) {
-            if (typeof timer !== "undefined") {
-                this._timer = timer;
-            }
-            return this._timer;
-        },
-
-        /**
-         * Returns <tt>true</tt> if the timer is currently running.
-         * @return {Boolean} <tt>true</tt> if the timer is running
-         */
-        isRunning:function () {
-            return this._running;
-        },
-
-        /**
-         * Cancel the timer.
-         */
-        cancel:function () {
-            this._timer = null;
-            this._running = false;
-        },
-
-        /**
-         * Pause the timer.  In the case where a timer was already processing,
-         * a restart would begin the timing process again with the full time
-         * allocated to the timer.  In the case of multi-timers (ones that retrigger
-         * a callback, or restart automatically a number of times) only the remaining
-         * iterations will be processed.
-         */
-        pause:function () {
-            this.cancel();
-            this._paused = true;
-        },
-
-        /**
-         * Cancel the running timer and restart it.
-         */
-        restart:function () {
-            this.cancel();
-            this._running = true;
-            this._paused = false;
-        },
-
-        /**
-         * Set the callback function for this timer.  If the timer is
-         * currently running, it will be restarted.
-         *
-         * @param callback {Function} A function object to call
-         */
-        callback:function (callback) {
-            if (typeof callback !== "undefined") {
-                this._callback = callback;
-                this._timerFn = null;
-                if (this.isRunning()) {
-                    this.restart();
-                }
-            } else {
-                if (this._timerFn === null) {
-                    this._timerFn = function () {
-                        var aC = arguments.callee, now = Date.now(), delta = now - aC.lastTime;
-                        aC.lastTime = now;
-                        if (aC.timerCallback)
-                            aC.timerCallback.call(aC.timer, now, delta);
-                    };
-                    this._timerFn.timerCallback = this._callback;
-                    this._timerFn.timer = this;
-                    this._timerFn.lastTime = Date.now();
-                }
-            }
-            return this._timerFn;
-        },
-
-        /**
-         * Set the interval of this timer.  If the timer is running, it
-         * will be cancelled.
-         *
-         * @param interval {Number} The interval of this timer, in milliseconds
-         */
-        interval:function (interval) {
-            if (typeof interval !== "undefined") {
-                this.cancel();
-                this._interval = interval;
-            }
-            return this._interval;
-        }
-
-    };
-
-    var Timer = function (interval, callback) {
-        AbstractTimer.call(this, interval, callback);
-    };
-
-    Timer.prototype = new AbstractTimer();
-    Timer.base = AbstractTimer.prototype;
-
-    Timer.prototype.cancel = function () {
-        global.clearTimeout(this.timer());
-        Timer.base.cancel();
+    Timer.prototype.state = function(key, value) {
+        if (typeof key === "object")
+            this._state = key;
+        else if (typeof key === "string" && typeof value === "undefined")
+            return this._state[key];
+        else if (typeof key === "string" && typeof value !== "undefined")
+            this._state[key] = value;
+        else
+            return this._state;
     };
 
     Timer.prototype.kill = function () {
+        if (!this._canBeKilled)
+            return this;
+
+        // The engine needs to remove this timer
+        TimersJS.cleanupCallback(this._systemTimerFunction);
         this.cancel();
-        Timer.base.kill();
+        removeTimerFromPool(this);
+        this._systemTimerReference = null;
+        return null;
+    };
+
+    Timer.prototype.systemTimer = function (timer) {
+        if (typeof timer !== "undefined") {
+            this._systemTimerReference = timer;
+        }
+        return this._systemTimerReference;
+    };
+
+    Timer.prototype.isRunning = function () {
+        return this._running;
+    };
+
+    Timer.prototype.cancel = function () {
+        global.clearTimeout(this.systemTimer());
+        this._systemTimerReference = null;
+        this._running = false;
+        return this;
+    };
+
+    Timer.prototype.pause = function () {
+        this.cancel();
+        this._paused = true;
+        return this;
     };
 
     Timer.prototype.restart = function () {
-        this.timer(global.setTimeout(this.callback(), this.interval()));
+        this.cancel();
+        this.systemTimer(global.setTimeout(this.callback(), this.interval()));
+        this._running = true;
+        this._paused = false;
+        return this;
     };
 
-    var IntervalTimer = function (interval, callback) {
-        var internalCallback = function(now, delta) {
+    Timer.prototype.killable = function(state) {
+        if (typeof state !== "undefined")
+            this._canBeKilled = state;
+
+        return this._canBeKilled;
+    };
+
+    Timer.prototype.callback = function (callback) {
+        if (typeof callback !== "undefined") {
+            this._callback = callback;
+            this._systemTimerFunction = null;
+            if (this.isRunning()) {
+                this.restart();
+            }
+        } else {
+            if (this._systemTimerFunction === null) {
+                this._systemTimerFunction = function () {
+                    var aC = arguments.callee, now = Date.now(), delta = now - aC.lastTime;
+                    aC.lastTime = now;
+                    if (aC.timerCallback)
+                        aC.timerCallback.call(aC.timer, delta, now);
+                };
+                this._systemTimerFunction.timerCallback = this._callback;
+                this._systemTimerFunction.timer = this;
+                this._systemTimerFunction.lastTime = Date.now();
+            }
+        }
+        return this._systemTimerFunction;
+    };
+
+    Timer.prototype.interval = function (interval) {
+        if (typeof interval !== "undefined") {
+            this.cancel();
+            this._interval = interval;
+        }
+        return this._interval;
+    };
+
+
+    // ### SUBCLASSES ------------------------------------------------------------------
+
+    var RepeaterTimer = function (interval, callback) {
+        var internalCallback = function(delta, now) {
             var aC = arguments.callee;
             if (aC.timerCallback)
-                aC.timerCallback.call(this, now, delta);
+                aC.timerCallback.call(this, delta, now);
 
             this.restart();
         };
@@ -199,20 +169,20 @@
 
         Timer.call(this, interval, internalCallback);
     };
-    IntervalTimer.prototype = new Timer();
-    IntervalTimer.base = Timer.prototype;
+    RepeaterTimer.prototype = new Timer();
+    RepeaterTimer.base = Timer.prototype;
 
     var MultiTimer = function (interval, callback, repetitions, completionCallback) {
 
-        var internalCallback = function (now, delta) {
+        var internalCallback = function (delta, now) {
             var aC = arguments.callee;
             if (aC.repetitions-- > 0) {
-                aC.callbackFunction.call(this, aC.totalRepetitions, now, delta);
+                aC.callbackFunction.call(this, aC.totalRepetitions, delta, now);
                 aC.totalRepetitions++;
                 this.restart();
             } else {
                 if (aC.completionCallback) {
-                    aC.completionCallback.call(this, now, delta);
+                    aC.completionCallback.call(this, delta, now);
                 }
                 this.kill();
                 global.TimersJS.cleanupCallback(aC);
@@ -230,9 +200,9 @@
 
     var OneShotTimer = function (interval, callback) {
 
-        var innerCallback = function (now, delta) {
+        var innerCallback = function (delta, now) {
             if (arguments.callee.callbackFunction) {
-                arguments.callee.callbackFunction.call(this, now, delta);
+                arguments.callee.callbackFunction.call(this, delta, now);
                 this.kill();
                 global.TimersJS.cleanupCallback(arguments.callee);
             }
@@ -252,23 +222,23 @@
         OneShotTimer.base.restart.call(this);
     };
 
-    var OneShotTrigger = function (interval, callback, triggerInterval, triggerCallback) {
+    var TriggerTimer = function (interval, callback, triggerInterval, triggerCallback) {
 
-        var completionCallback = function (now, delta) {
+        var completionCallback = function (delta, now) {
             var aC = arguments.callee;
             aC.interval.kill();
-            aC.intervalCompletionCallback.call(this, now, delta);
+            aC.intervalCompletionCallback.call(this, delta, now);
             global.TimersJS.cleanupCallback(aC);
         };
 
         // Create an Interval internally
-        completionCallback.interval = new IntervalTimer(triggerInterval, triggerCallback);
+        completionCallback.interval = new RepeaterTimer(triggerInterval, triggerCallback);
         completionCallback.intervalCompletionCallback = callback;
 
         OneShotTimer.call(this, interval, completionCallback);
     };
-    OneShotTrigger.prototype = new OneShotTimer();
-    OneShotTrigger.base = OneShotTimer.prototype;
+    TriggerTimer.prototype = new OneShotTimer();
+    TriggerTimer.base = OneShotTimer.prototype;
 
     /*
      *      PUBLIC API --------------------------------------------------------------------------
@@ -280,8 +250,8 @@
         },
 
         poolSize: function() {
-            // Subtract the class inheritance
-            return timerPool.length - 5;
+            // Subtract the class inheritance objects
+            return timerPool.length;
         },
 
         pauseAllTimers: function() {
@@ -295,15 +265,20 @@
         },
 
         cancelAllTimers: function() {
-            while (timerPool.length > 0) {
-                timerPool[0].cancel();
-            }
+            for (var i = 0; i < timerPool.length; i++)
+                timerPool[i].cancel();
         },
 
         killAllTimers: function() {
+            var liveTimers = [];
             while (timerPool.length > 0) {
-                timerPool[0].kill();
+                var timer = timerPool.shift();
+                if (!timer.killable())
+                    liveTimers.push(timer);
+                else
+                    timer.kill();
             }
+            timerPool = liveTimers;
         },
 
         // TIMERS ---------------------------------------------------------------------------
@@ -313,7 +288,7 @@
         },
 
         repeater: function(interval, callback) {
-            return new IntervalTimer(interval, callback);
+            return new RepeaterTimer(interval, callback);
         },
 
         multi: function(interval, repetitions, callback, completionCallback) {
@@ -325,7 +300,7 @@
         },
 
         trigger: function(interval, callback, triggerRate, triggerCallback) {
-            return new OneShotTrigger(interval, callback, triggerRate, triggerCallback);
+            return new TriggerTimer(interval, callback, triggerRate, triggerCallback);
         }
     };
 
