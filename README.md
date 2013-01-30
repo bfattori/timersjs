@@ -1,16 +1,15 @@
 timersjs
 ========
 
-The simple JavaScript timer factory
+A tiny JavaScript timer library
 
-This little library was extracted from The Render Engine game engine's code base for use by
+This library was extracted from [The Render Engine](https://github.com/bfattori/TheRenderEngine) game engine's code base for use by
 anyone.  It provides five little timer wrappers which make using timers a little easier.
 
-Usage:
-======
+## Usage:
 
 ```javascript
-var timer = TimersJS.timer(100, function(now, delta) {
+var timer = TimersJS.timer(100, function(delta, now) {
    console.log("This is output after 100ms, the current time is " + now + "ms");
 });
 ```
@@ -25,10 +24,10 @@ var timer = TimersJS.timer(250, function() {
 });
 ```
 
-This could also be accomplished with:
+This simple construct is implemented for you as:
 
 ```javascript
-var repeater = TimersJS.repeater(250, function(now, delta) {
+var repeater = TimersJS.repeater(250, function(delta) {
    console.log("This is output every 250ms, time since last execution: " + delta + "ms");
 });
 ```
@@ -53,7 +52,7 @@ TimersJS.oneShot(500, function() {
 });
 ```
 
-This is a timer which will repeat a certain number of timer before it self destructs:
+This is a timer which will repeat a certain number of times before it self destructs:
 
 ```javascript
 TimersJS.multi(250, 8, function(repetition) {
