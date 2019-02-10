@@ -1,0 +1,27 @@
+{
+  "name": "timersjs",
+  "version": "1.0.0",
+  "description": "A small libaray of timer abstractions to make using timers in Javascript easier.",
+  "main": "timers.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bfattori/timersjs.git"
+  },
+  "keywords": [
+    "timers",
+    "settimeout",
+    "setinterval",
+    "timer",
+    "trigger",
+    "timing"
+  ],
+  "author": "Brett Fattori <bfattori@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bfattori/timersjs/issues"
+  },
+  "homepage": "https://github.com/bfattori/timersjs#readme"
+}

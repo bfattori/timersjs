@@ -1,8 +1,6 @@
 /**
  * TimersJS
  *
- * @fileoverview A collection of timer objects.
- *
  * Copyright (c) 2013 Brett Fattori (bfattori@gmail.com)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
