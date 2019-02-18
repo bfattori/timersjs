@@ -6,11 +6,11 @@ Originally extracted from a game engine I wrote, I found these timers extremely 
 
 A `Timer` is a simple JavaScript timeout with some added functionality. As long as the timer instance exists, it can be restarted and perform the action again. You can also change the interval when the timer is not running.
 
-This version is written in Ecmascript 6 and will not work in unsupported environments. For a version compatible with ES5 and earlier, try: https://npmjs.org/packages/timersjs_compat
+_This version is written in Ecmascript 6 and will not work in unsupported environments. For a version compatible with ES5 and earlier, try:_ https://npmjs.org/packages/timersjs_compat
 
 ```javascript
 // Create the timer instance
-let timer = TimerJS.timer(1000, function() {
+let timer = TimersJS.timer(1000, function() {
     alert("TimerJS");
 });
 // expect: "TimerJS" after one second
