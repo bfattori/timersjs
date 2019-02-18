@@ -16,7 +16,7 @@ let timer = TimersJS.timer(1000, function() {
 // expect: "TimerJS" after one second
 
 // Change the interval to 5000 and restart
-timer.interval(2000).restart();
+timer.interval(5000).restart();
 // expect: "TimerJS" after five seconds
 
 // When done with a timer, kill it explicitly
@@ -115,7 +115,7 @@ You may wonder why have the trigger and the multi?  Well, the multi is triggered
 
 # License
 ```
-Copyright 2013 Brett Fattori
+Copyright 2013, 2019 Brett Fattori
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this 
 software and associated documentation files (the "Software"), to deal in the Software 
