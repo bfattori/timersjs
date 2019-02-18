@@ -1,8 +1,8 @@
 {
   "name": "timersjs",
   "version": "1.0.0",
-  "description": "A small libaray of timer abstractions to make using timers in Javascript easier.",
-  "main": "timers.js",
+  "description": "A small libaray of timer abstractions to make using timers in Javascript easier. Written in Ecmascript 6.",
+  "main": "timers_es6.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

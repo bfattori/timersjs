@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Functional Timer Testing</title>
-    <script type="text/javascript" src="timers.js"></script>
+    <title>Functional Timer Testing :: ES6</title>
+    <script type="application/javascript" src="timers_es6.js"></script>
 
-    <script type="text/javascript">
-        var timer, repeater, multi, oneshot, trigger;
+    <script type="application/javascript">
+        let timer, repeater, multi, oneshot, trigger;
 
-        TimersJS.repeater(100, function() {
+        setInterval(() => {
             document.getElementById("poolSize").innerHTML = TimersJS.poolSize();
-        });
+        },100);
 
         function addClass(el, className) {
             if (el.className.indexOf(className) == -1) {
@@ -69,7 +69,7 @@
         function startMultiTimer() {
             if (!multi) {
                 addClass(document.querySelector("div.multi"), "on");
-                multi = TimersJS.multi(500, 10, function(repetition) {
+                multi = TimersJS.multi(500, 10, function(repetitions, delta, now) {
                     var el = document.querySelector("div.multi");
                     if (hasClass(el, "red")) {
                         removeClass(el, "red");
@@ -78,7 +78,7 @@
                         removeClass(el, "green");
                         addClass(el, "red");
                     }
-                }, function() {
+                }, function(delta, now) {
                     removeClass(document.querySelector("div.multi"), "on");
                     multi = null;
                 });
@@ -87,7 +87,7 @@
 
         function startOneShot() {
             if (!oneshot) {
-                oneshot = TimersJS.oneShot(250, function() {
+                oneshot = TimersJS.oneShot(250, function(delta, now) {
                     var el = document.querySelector("div.oneshot");
                     if (hasClass(el, "red")) {
                         removeClass(el, "red");
@@ -105,13 +105,13 @@
             if (!trigger) {
                 var el = document.querySelector("div.trigger1");
                 addClass(el, "on");
-                trigger = TimersJS.trigger(5000, function() {
+                trigger = TimersJS.trigger(5000, function(delta, now) {
                     var el = document.querySelector("div.trigger1");
                     var el2 = document.querySelector("div.trigger2");
                     removeClass(el, "on");
                     removeClass(el2, "on");
                     trigger = null;
-                }, 500, function() {
+                }, 500, function(delta, now) {
                     var el = document.querySelector("div.trigger2");
                     if (hasClass(el, "on")) {
                         removeClass(el, "on");
@@ -123,7 +123,7 @@
         }
 
         function somethingCool() {
-            TimersJS.timer(250, function() {
+            let sC = TimersJS.timer(250, function() {
                 var els = document.querySelectorAll("div.led"), i = 0;
                 while (i < els.length && hasClass(els.item(i), "on")) {
                     i++;
@@ -150,7 +150,7 @@
         }
 
         function killAll() {
-            TimersJS.cancelAllTimers();
+            TimersJS.killAllTimers();
             timer = null;
             repeater = null;
             multi = null;
@@ -163,9 +163,9 @@
         div.led {
             display: inline-block;
             border: 1px solid;
-            border-radius: 10px;
-            width: 10px;
-            height: 10px;
+            border-radius: 20px;
+            width: 20px;
+            height: 20px;
             margin: 3px;
         }
 

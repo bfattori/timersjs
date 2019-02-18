@@ -1,251 +1,329 @@
-/**
- * TimersJS
- *
- * Copyright (c) 2013 Brett Fattori (bfattori@gmail.com)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- *
- */
-(function () {
+(function(G) {
+    /**
+     * TimersJS
+     *
+     * Copyright (c) 2013, 2019 Brett Fattori (bfattori@gmail.com)
+     *
+     * Permission is hereby granted, free of charge, to any person obtaining a copy
+     * of this software and associated documentation files (the "Software"), to deal
+     * in the Software without restriction, including without limitation the rights
+     * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+     * copies of the Software, and to permit persons to whom the Software is
+     * furnished to do so, subject to the following conditions:
+     *
+     * The above copyright notice and this permission notice shall be included in
+     * all copies or substantial portions of the Software.
+     *
+     * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+     * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+     * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+     * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+     * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+     * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+     * THE SOFTWARE.
+     *
+     * 2/2019 - Rewritten in ES6, internals exposed, refactored
+     */
+    const isNode = typeof(process) !== "undefined" && process.title && !G;
+    let SystemTimers = isNode ? require('timers') : this, 
+        timerPool = [], callbacksPool = [], opaque = 0;
 
-    var global = this, timerPool = [], callbacksPool = [];
+    const STATE = {
+        INIT:       Symbol("INIT"),
+        RUNNING:    Symbol("RUNNING"),
+        PAUSED:     Symbol("PAUSED"),
+        DEAD:       Symbol("DEAD")
+    };
 
     function addTimerToPool(timer) {
         timerPool.push(timer);
-        return timerPool.length - 1;
+        opaque++;
+        return opaque;
     }
 
     function removeTimerFromPool(timer) {
-        timerPool.splice(timer.id, 1);
+        timerPool = timerPool.filter((el) => { return el.id !== timer.id });
     }
 
+    function addCleanupCallback(callback) {
+        callbacksPool.push(callback);
+    }
 
-    var Timer = function (interval, callback) {
-        var prototyping = false;
-        if (typeof interval === "undefined")
-            prototyping = true;
-
-        this._systemTimerReference = null;
-        this._interval = interval;
-        this._callback = callback;
-        this._running = false;
-        this._paused = false;
-        this._systemTimerFunction = null;
-        this._canBeKilled = true;
-        this._state = {};
-
-        if (!prototyping)
-            this.id = addTimerToPool(this);
-
-        if (typeof arguments[2] === "undefined")
-            this.restart();
-
-        return this;
-    };
-
-    Timer.prototype.state = function(key, value) {
-        if (typeof key === "object")
-            this._state = key;
-        else if (typeof key === "string" && typeof value === "undefined")
-            return this._state[key];
-        else if (typeof key === "string" && typeof value !== "undefined")
-            this._state[key] = value;
-        else
-            return this._state;
-    };
-
-    Timer.prototype.kill = function () {
-        if (!this._canBeKilled)
-            return this;
-
-        // The engine needs to remove this timer
-        TimersJS.cleanupCallback(this._systemTimerFunction);
-        this.cancel();
-        removeTimerFromPool(this);
-        this._systemTimerReference = null;
-        return null;
-    };
-
-    Timer.prototype.systemTimer = function (timer) {
-        if (typeof timer !== "undefined") {
-            this._systemTimerReference = timer;
+    function dispose(obj) {
+        if (obj !== undefined && obj !== null) {
+            Object.keys(obj).forEach((key) => delete obj[key] );
         }
-        return this._systemTimerReference;
-    };
+    }
 
-    Timer.prototype.isRunning = function () {
-        return this._running;
-    };
+    SystemTimers.setInterval(function() {
+        while (callbacksPool.length > 0) {
+            dispose(callbacksPool[0]);
+            callbacksPool[0] = undefined;
+            callbacksPool.shift();
+        }
+    }, 500);
 
-    Timer.prototype.cancel = function () {
-        global.clearTimeout(this.systemTimer());
-        this._systemTimerReference = null;
-        this._running = false;
-        return this;
-    };
+    /*
+     * Internal Classes --------------------------------------------------------------------
+     */
+    class Timer {
+        constructor(interval, callback) {
+            let prototyping = (typeof interval === "undefined");
 
-    Timer.prototype.pause = function () {
-        this.cancel();
-        this._paused = true;
-        return this;
-    };
+            this.internal = {
+                callback: null,
+                systemTimerReference: null,
+                systemTimerFunction: null,
+                state: STATE.INIT,
+                lastTime: Date.now(),
+                interval: interval,
+                killable: true
+            };
 
-    Timer.prototype.restart = function () {
-        this.cancel();
-        this.systemTimer(global.setTimeout(this.callback(), this.interval()));
-        this._running = true;
-        this._paused = false;
-        return this;
-    };
+            // External state object
+            this.state = {};
 
-    Timer.prototype.killable = function(state) {
-        if (typeof state !== "undefined")
-            this._canBeKilled = state;
+            if (!prototyping) {
+                this.id = addTimerToPool(this);
+            }
+            
+            // Bind the callback
+            if (this.shouldRestart()) {
+                this.callback(callback);
+                this.restart();
+            }
 
-        return this._canBeKilled;
-    };
+            return this;
+        }
 
-    Timer.prototype.callback = function (callback) {
-        if (typeof callback !== "undefined") {
-            this._callback = callback;
-            this._systemTimerFunction = null;
+        shouldRestart() {
+            return true;
+        }
+
+        state(key, value) {
+            if (typeof key === "object")
+                this.state = key;
+            else if (typeof key === "string" && typeof value === "undefined")
+                return this.state[key];
+            else if (typeof key === "string" && typeof value !== "undefined")
+                this.state[key] = value;
+            else
+                return this.state;
+        }
+    
+        kill() {
+            if (!this.internal.killable)
+                return this;
+    
+            // The JS engine needs to clean up this timer
+            addCleanupCallback(this.internal.systemTimerFunction);
+            this.cancel();
+            removeTimerFromPool(this);
+            this.internal.systemTimerReference = null;
+
+            this.internal.state = STATE.DEAD;
+            return undefined;
+        }
+    
+        systemTimer(timer) {
+            if (timer) {
+                this.internal.systemTimerReference = timer;
+            }
+            return this.internal.systemTimerReference;
+        }
+    
+        isRunning() {
+            return this.internal.state === STATE.RUNNING;
+        }
+    
+        cancel() {
+            SystemTimers.clearTimeout(this.systemTimer());
+            this.internal.systemTimerReference = null;
+            this.internal.running = false;
+            return this;
+        }
+    
+        pause() {
+            this.cancel();
+            this.internal.state = STATE.PAUSED;
+            return this;
+        }
+    
+        restart() {
+            this.cancel();
+            if (this.internal.callback !== null) {
+                this.systemTimer(SystemTimers.setTimeout(this.callback(), this.interval()));
+                this.internal.running = true;
+                this.internal.state = STATE.RUNNING;
+            }
+            return this;
+        }
+    
+        killable(state) {
+            if (state !== undefined)
+                this.internal.killable = state;
+    
+            return this.internal.killable;
+        }
+    
+        callback(callback) {
+            if (callback) {
+                this.setCallback(callback);
+            } else {
+                if (this.internal.systemTimerFunction === null) {
+                    this.internal.systemTimerFunction = function() {
+                        let now = Date.now(), delta = now - this.lastTime;
+                        this.lastTime = now;
+                        if (this.callback) {
+                            this.callback.call(this.timer, delta, now);
+                        }
+                    }.bind({
+                        timer: this,
+                        lastTime: this.internal.lastTime,
+                        callback: this.internal.callback    
+                    });
+                }
+            }
+            return this.internal.systemTimerFunction;
+        }
+
+        setCallback(callback) {
+            this.internal.callback = callback;
+            this.internal.systemTimerFunction = null;
             if (this.isRunning()) {
                 this.restart();
             }
-        } else {
-            if (this._systemTimerFunction === null) {
-                this._systemTimerFunction = function () {
-                    var aC = arguments.callee, now = Date.now(), delta = now - aC.lastTime;
-                    aC.lastTime = now;
-                    if (aC.timerCallback)
-                        aC.timerCallback.call(aC.timer, delta, now);
-                };
-                this._systemTimerFunction.timerCallback = this._callback;
-                this._systemTimerFunction.timer = this;
-                this._systemTimerFunction.lastTime = Date.now();
+        }
+
+        interval(interval) {
+            if (interval !== undefined) {
+                this.cancel();
+                this.internal.interval = interval;
             }
+            return this.internal.interval;
         }
-        return this._systemTimerFunction;
-    };
+    
+    }
 
-    Timer.prototype.interval = function (interval) {
-        if (typeof interval !== "undefined") {
-            this.cancel();
-            this._interval = interval;
-        }
-        return this._interval;
-    };
+    // ### Private subclasses ------------------------------------------------------------------
 
+    class RepeaterTimer extends Timer {
 
-    // ### SUBCLASSES ------------------------------------------------------------------
-
-    var RepeaterTimer = function (interval, callback) {
-        var internalCallback = function(delta, now) {
-            var aC = arguments.callee;
-            if (aC.timerCallback)
-                aC.timerCallback.call(this, delta, now);
-
-            this.restart();
-        };
-        internalCallback.timerCallback = callback;
-
-        Timer.call(this, interval, internalCallback);
-    };
-    RepeaterTimer.prototype = new Timer();
-    RepeaterTimer.base = Timer.prototype;
-
-    var MultiTimer = function (interval, callback, repetitions, completionCallback) {
-
-        var internalCallback = function (delta, now) {
-            var aC = arguments.callee;
-            if (aC.repetitions-- > 0) {
-                aC.callbackFunction.call(this, aC.totalRepetitions, delta, now);
-                aC.totalRepetitions++;
-                this.restart();
-            } else {
-                if (aC.completionCallback) {
-                    aC.completionCallback.call(this, delta, now);
+        setCallback(callback) {
+            let internalCallback = function(delta, now) {
+                if (this.callbackFunction) {
+                    this.callbackFunction.call(this.timer, delta, now);
                 }
-                this.kill();
-                global.TimersJS.cleanupCallback(aC);
-            }
-        };
-        internalCallback.callbackFunction = callback;
-        internalCallback.completionCallback = completionCallback;
-        internalCallback.repetitions = repetitions;
-        internalCallback.totalRepetitions = 0;
 
-        Timer.call(this, interval, internalCallback);
-    };
-    MultiTimer.prototype = new Timer();
-    MultiTimer.base = Timer.prototype;
+                this.timer.restart();
+            }.bind({
+                callbackFunction: callback,
+                timer: this
+            });
+            super.setCallback(internalCallback);            
+        }
+    }
 
-    var OneShotTimer = function (interval, callback) {
+    class MultiTimer extends Timer {
+        constructor (interval, callback, repetitions, completionCallback) {
+            super(interval, callback);
 
-        var innerCallback = function (delta, now) {
-            if (arguments.callee.callbackFunction) {
-                arguments.callee.callbackFunction.call(this, delta, now);
-                this.kill();
-                global.TimersJS.cleanupCallback(arguments.callee);
-            }
-        };
-        innerCallback.callbackFunction = callback;
-
-        Timer.call(this, interval, innerCallback);
-    };
-    OneShotTimer.prototype = new Timer();
-    OneShotTimer.base = Timer.prototype;
-
-    OneShotTimer.prototype.restart = function () {
-        if (!this._paused && this._running) {
-            return;
+            this.internal.completionCallback = completionCallback;
+            this.internal.repetitions = repetitions;
+            
+            this.callback(callback);
+            this.restart();
         }
 
-        OneShotTimer.base.restart.call(this);
-    };
+        shouldRestart() {
+            return false;
+        }
 
-    var TriggerTimer = function (interval, callback, triggerInterval, triggerCallback) {
+        setCallback(callback) {
+            let internalCallback = function(delta, now) {
+                if (this.repetitions-- > 0) {
+                    this.callbackFunction.call(this.timer, this.totalRepetitions, delta, now);
+                    this.totalRepetitions++;
+                    this.timer.restart();
+                } else {
+                    if (this.completionCallback) {
+                        this.completionCallback.call(this.timer, delta, now);
+                    }
+                    this.timer.kill();
+                    addCleanupCallback(this);
+                }
+            }.bind({
+                callbackFunction: callback,
+                completionCallback: this.internal.completionCallback,
+                repetitions: this.internal.repetitions,
+                totalRepetitions: 0,
+                timer: this
+            });
+            super.setCallback(internalCallback);
+        }
+    }
 
-        var completionCallback = function (delta, now) {
-            var aC = arguments.callee;
-            aC.interval.kill();
-            aC.intervalCompletionCallback.call(this, delta, now);
-            global.TimersJS.cleanupCallback(aC);
-        };
+    class OneShotTimer extends Timer { 
 
-        // Create an Interval internally
-        completionCallback.interval = new RepeaterTimer(triggerInterval, triggerCallback);
-        completionCallback.intervalCompletionCallback = callback;
+        setCallback(callback) {
+            let innerCallback = function(delta, now) {
+                if (this.callbackFunction) {
+                    this.callbackFunction.call(this.timer, delta, now);
+                    this.timer.kill();
+                    addCleanupCallback(this);
+                }
+            }.bind({
+                callbackFunction: callback,
+                timer: this
+            });
 
-        OneShotTimer.call(this, interval, completionCallback);
-    };
-    TriggerTimer.prototype = new OneShotTimer();
-    TriggerTimer.base = OneShotTimer.prototype;
+            super.setCallback(innerCallback);
+        }
+
+        restart() {
+            if (this.internal.state !== STATE.PAUSED && this._running) {
+                return;
+            }
+    
+            super.restart();
+        }
+    }
+
+    class TriggerTimer extends OneShotTimer { 
+        constructor(interval, callback, triggerInterval, triggerCallback) {
+            super(interval, callback);
+
+            this.triggerInterval = triggerInterval;
+            this.triggerCallback = triggerCallback;
+
+            this.callback(callback);
+            this.restart();
+        }
+
+        shouldRestart() {
+            return false;
+        }
+
+        setCallback(callback) {
+            let completionCallback = function(delta, now) {
+                this.interval.kill();
+                this.intervalCompletionCallback.call(this.timer, delta, now);
+                addCleanupCallback(this);
+            }.bind({
+                interval: new RepeaterTimer(this.triggerInterval, this.triggerCallback),
+                intervalCompletionCallback: callback,
+                timer: this
+            });
+
+            super.setCallback(completionCallback);
+        }
+    }
 
     /*
      *      PUBLIC API --------------------------------------------------------------------------
      */
 
-    global.TimersJS = {
-        cleanupCallback: function(cb) {
-            callbacksPool.push(cb);
-        },
+    let TimersJS = {
 
         poolSize: function() {
             // Subtract the class inheritance objects
@@ -253,18 +331,15 @@
         },
 
         pauseAllTimers: function() {
-            for (var i = 0; i < timerPool.length; i++)
-                timerPool[i].pause();
+            timerPool.forEach((timer) => timer.pause());
         },
 
         restartAllTimers: function() {
-            for (var i = 0; i < timerPool.length; i++)
-                timerPool[i].restart();
+            timerPool.forEach((timer) => timer.restart());
         },
 
         cancelAllTimers: function() {
-            for (var i = 0; i < timerPool.length; i++)
-                timerPool[i].cancel();
+            timerPool.forEach((timer) => timer.cancel());
         },
 
         killAllTimers: function() {
@@ -279,7 +354,20 @@
             timerPool = liveTimers;
         },
 
-        // TIMERS ---------------------------------------------------------------------------
+        // Export the classes because Open Source
+        exports: {
+            Timer: Timer,
+            RepeaterTimer: RepeaterTimer,
+            MultiTimer: MultiTimer,
+            OneShotTimer: OneShotTimer,
+            TriggerTimer: TriggerTimer,
+
+            addTimerToPool: addTimerToPool,
+            removeTimerFromPool: removeTimerFromPool,
+            addCleanupCallback: addCleanupCallback
+        },
+
+        // TIMER FACTORY --------------------------------------------------------------
 
         timer: function(interval, callback) {
             return new Timer(interval, callback);
@@ -302,10 +390,12 @@
         }
     };
 
-    global.setInterval(function() {
-        while (callbacksPool.length > 0) {
-            callbacksPool[0] = null;
-            callbacksPool.shift();
-        }
-    }, 500);
+    Object.freeze(TimersJS.exports);
+    
+    if (isNode) {
+        module.exports = TimersJS;
+    } else {
+        G.TimersJS = TimersJS;
+    }
+
 })();
