@@ -27,7 +27,7 @@ timer.kill();
 ## Installation
 
 ```
-npm install timersjs
+npm install @bfattori/neotimer
 ```
 
 ## Usage:
